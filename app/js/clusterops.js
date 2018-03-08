@@ -46,21 +46,21 @@ angular.module('Oshinko')
         return deferred.promise;
       }
 
-      function sendDeleteCluster(clusterName, context) {
-        var masterDeploymentName = clusterName + "-m";
-        var workerDeploymentName = clusterName + "-w";
+      function scaleCrd(clusterName, count, context){
+        var deferred = $q.defer();
+        var resource = {resource: 'sparkclusters', version: 'v1', group: 'radanalytics.redhat.com'};
 
-        var steps = [
-          deleteObject(masterDeploymentName, 'deploymentconfigs', context),
-          deleteObject(workerDeploymentName, 'deploymentconfigs', context),
-          deleteObject(clusterName + "-ui-route", 'routes', context),
-          deleteObject(clusterName, 'services', context),
-          deleteObject(clusterName + "-ui", 'services', context),
-          deleteObject(clusterName + "-metrics", 'services', context),
-          deleteObject(clusterName + "-metrics", 'configmaps', context)
-        ];
+        DataService.get(resource, clusterName, context, null).then(function (sparkcluster) {
+          var spec = _.get(sparkcluster, 'spec');
+          var manifest = sparkclusterManifest(spec.Image, clusterName, count, spec.sparkmetrics, spec.alertrules);
+          var context = { namespace: sparkcluster.metadata.namespace };
+          _.set(manifest, 'metadata.resourceVersion', _.get(sparkcluster, 'metadata.resourceVersion'));
 
-        return $q.all(steps);
+          DataService.update(resource, sparkcluster.metadata.name, manifest, context).then(function (result){
+            deferred.resolve(result);
+          });
+        });
+        return deferred.promise;
       }
 
       function getMetricsConfigMap(mapName) {
@@ -291,6 +291,33 @@ angular.module('Oshinko')
         return dc;
       }
 
+      function sparkclusterManifest(image, clusterName, workerCount, sparkmetrics, alertrules){
+        if(!image || !clusterName || !workerCount || !sparkmetrics || !alertrules){
+          return null;
+        }
+
+        var manifest = {
+          apiVersion: "radanalytics.redhat.com/v1",
+          kind: "SparkCluster",
+          metadata: {
+            clusterName: clusterName,
+            labels: {
+              "radanalytics": "sparkcluster"
+            },
+            name: clusterName
+          },
+          spec: {
+            Image: image,
+            SparkMasterName: clusterName + "-m",
+            SparkWorkerName: clusterName + "-w",
+            sparkmetrics: sparkmetrics,
+            alertrules: alertrules,
+            workers: workerCount
+          }
+        };
+        return manifest;
+      }
+
       function makeService(input, serviceName, ports) {
         if (!ports || !ports.length) {
           return null;
@@ -344,6 +371,10 @@ angular.module('Oshinko')
           }
         };
         return makeService(input, serviceName, ports);
+      }
+
+      function createSparkCluster(clusterObject, context){
+        return DataService.create("sparkclusters", null, clusterObject, context, null);
       }
 
       function createDeploymentConfig(dcObject, context) {
@@ -459,6 +490,22 @@ angular.module('Oshinko')
       }
 
       function sendCreateCluster(clusterConfigs, context) {
+        if(clusterConfigs.useCRD){
+          var defer = $q.defer();
+          getFinalConfigs(clusterConfigs, context)
+            .then(function (finalConfigs) {
+              createSparkCluster(sparkclusterManifest(finalConfigs.sparkImage, clusterConfigs.clusterName,
+                finalConfigs["workerCount"], clusterConfigs.sparkmetrics, clusterConfigs.alertrules), context)
+                .then(function (result) {
+                  defer.resolve(result);
+                })
+                .catch(function (err) {
+                  defer.reject(err);
+                });
+            });
+          return defer.promise;
+        }
+
         var workerPorts = [
           {
             "name": "spark-webui",
@@ -555,16 +602,42 @@ angular.module('Oshinko')
         return deferred.promise;
       }
 
-      // Start scale-related functions
-      function sendScaleCluster(clusterName, workerCount, masterCount, context) {
-        var workerDeploymentName = clusterName + "-w";
-        var masterDeploymentName = clusterName + "-m";
-        var steps = [
-          scaleReplication(clusterName, workerDeploymentName, workerCount, context),
-          scaleReplication(clusterName, masterDeploymentName, masterCount, context)
-        ];
+      function sendDeleteCluster(clusterName, context, deploymentType) {
+        if (deploymentType === "crd") {
+          var resource = {resource: 'sparkclusters', version: 'v1', group: 'radanalytics.redhat.com'};
+          return deleteObject(clusterName, resource, context);
+        } else {
+          var masterDeploymentName = clusterName + "-m";
+          var workerDeploymentName = clusterName + "-w";
 
-        return $q.all(steps);
+          var steps = [
+            deleteObject(masterDeploymentName, 'deploymentconfigs', context),
+            deleteObject(workerDeploymentName, 'deploymentconfigs', context),
+            deleteObject(clusterName + "-ui-route", 'routes', context),
+            deleteObject(clusterName, 'services', context),
+            deleteObject(clusterName + "-ui", 'services', context),
+            deleteObject(clusterName + "-metrics", 'services', context),
+            deleteObject(clusterName + "-metrics", 'configmaps', context)
+          ];
+          return $q.all(steps);
+        }
+
+      }
+
+      // Start scale-related functions
+      function sendScaleCluster(clusterName, workerCount, masterCount, context, deploymentType) {
+        if (deploymentType === "crd") {
+          return scaleCrd(clusterName, workerCount, context);
+        } else {
+          var workerDeploymentName = clusterName + "-w";
+          var masterDeploymentName = clusterName + "-m";
+          var steps = [
+            scaleReplication(clusterName, workerDeploymentName, workerCount, context),
+            scaleReplication(clusterName, masterDeploymentName, masterCount, context)
+          ];
+
+          return $q.all(steps);
+        }
       }
 
       return {

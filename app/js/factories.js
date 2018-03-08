@@ -11,14 +11,17 @@ var module = angular.module('Oshinko.factories', ['ui.bootstrap', 'patternfly.no
 module.factory('clusterActions', [
   '$uibModal',
   function($uibModal) {
-    function deleteCluster(clusterName) {
+    function deleteCluster(clusterName, deploymentType) {
       return $uibModal.open({
         animation: true,
         controller: 'ClusterDeleteCtrl',
         templateUrl: '/webui/forms/' + 'delete-cluster.html',
         resolve: {
           dialogData: function() {
-            return { clusterName: clusterName };
+            return {
+              clusterName: clusterName,
+              deploymentType: deploymentType
+            };
           }
         }
       }).result;
@@ -35,7 +38,7 @@ module.factory('clusterActions', [
         }
       }).result;
     }
-    function scaleCluster(clusterName, workerCount, masterCount) {
+    function scaleCluster(clusterName, workerCount, masterCount, deploymentType) {
       return $uibModal.open({
         animation: true,
         controller: 'ClusterDeleteCtrl',
@@ -44,7 +47,8 @@ module.factory('clusterActions', [
           dialogData: function() {
             return { clusterName: clusterName,
               workerCount: workerCount,
-              masterCount: masterCount
+              masterCount: masterCount,
+              deploymentType: deploymentType
             };
           }
         }

@@ -11,7 +11,13 @@
   <h4 class="modal-title" translatable="yes">Deploy cluster</h4>
 </div>
 <div class="modal-body" ng-keyup="submitForm($event, 'newCluster')">
-  <form>
+
+  <ul class="nav nav-tabs">
+    <li ng-class="{active:tabIsSet(regForm)}"><a href ng-click="setTab(regForm)">Standard</a></li>
+    <li ng-class="{active:tabIsSet(crdForm)}"><a href ng-click="setTab(crdForm)">CRD Option</a></li>
+  </ul>
+
+  <form ng-show="tabIsSet(regForm)">
     <fieldset ng-disabled="disableInputs">
       <div class="form-group">
           <label for="cluster-new-name">Name</label>
@@ -42,23 +48,55 @@
           <input id="cluster-workerconfig-name" class="form-control input-lg" type="text" ng-model="fields.workerconfigname"/>
         </div>
         <div class="form-group">
-          <label for="cluster-spark-image">Apache Spark image (default is SPARK_DEFAULT)</label>
+          <label for="cluster-spark-image">Apache Spark image (default is radanalyticsio/openshift-spark)</label>
           <input id="cluster-spark-image" class="form-control input-lg" type="text" ng-model="fields.sparkimage"/>
         </div>
         <div class="form-group">
           <label for="exposewebui">Expose Spark master web user interface</label>
           <input id="exposewebui" class="form-control input-lg" type="checkbox" ng-model="fields.exposewebui"/>
         </div>
+
         <div class="form-group"><a id="toggle-basic" href="" ng-click="toggleAdvanced()">Basic cluster configuration</a></div>
       </div>
     </fieldset>
   </form>
+
+  <form ng-show="tabIsSet(crdForm)">
+    <fieldset ng-disabled="disableInputs">
+      <div class="form-group">
+        <label for="cluster-new-name-crd">Name</label>
+        <input id="cluster-new-name-crd" class="form-control input-lg" type="text" ng-model="fields.name" autofocus/>
+      </div>
+      <div>
+        <div class="form-group">
+          <label for="cluster-new-workers-crd">Number of workers</label>
+          <input id="cluster-new-workers-crd" class="form-control input-lg" type="number" ng-model="fields.workers"/>
+        </div>
+        <div class="form-group">
+          <label for="spark-metrics-crd">Sparkmetrics</label>
+          <select id="spark-metrics-crd" class="form-control" ng-model="fields.sparkmetrics" >
+            <option>prometheus</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="alert-rules-crd">Alert rules</label>
+          <input id="alert-rules-crd" class="form-control input-lg" type="text" ng-model="fields.alertrules"/>
+        </div>
+
+      </div>
+    </fieldset>
+  </form>
+
   <div ng-show="formError">
     <span class="form-error">{{ formError }}</span>
   </div>
+
 </div>
+
 <div class="modal-footer">
   <button id="cancelbutton" class="btn btn-default btn-cancel" translatable="yes" >Cancel</button>
   <button id="createbutton" class="btn btn-primary" translatable="yes" ng-click="complete(newCluster())">Deploy</button>
 </div>
+
 </modal-dialog>

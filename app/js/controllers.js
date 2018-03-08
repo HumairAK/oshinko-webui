@@ -200,6 +200,12 @@ module.controller('ClusterCtrl',
       var cluster = $scope.oshinkoClusters[$scope.cluster];
       return cluster;
     };
+    $scope.getDeploymentType = function (cluster) {
+      var pod = _.get(cluster, 'master.pod');
+      var clusterKey = _.findKey(pod, 'metadata');
+      var type = _.get(pod, clusterKey + '.metadata.labels.deployment-mode') || 'standard';
+      return type;
+    };
 
     $scope.context = {
       namespace: window.__env.namespace,
@@ -252,15 +258,15 @@ module.controller('ClusterDeleteCtrl', function ($q, $scope, dialogData, cluster
     $scope.masterCount = parseInt($scope.masterCount) || 0;
     $scope.workerCount = dialogData.workerCount || "";
     $scope.workerCount = parseInt($scope.workerCount) || 0;
+    $scope.deploymentType = dialogData.deploymentType || "";
     $scope.context = {
       namespace: window.__env.namespace,
       projectName: window.__env.namespace
     };
 
-
     $scope.deleteCluster = function deleteCluster() {
       var defer = $q.defer();
-      clusterData.sendDeleteCluster($scope.clusterName, $scope.context)
+      clusterData.sendDeleteCluster($scope.clusterName, $scope.context, $scope.deploymentType)
         .then(function (response) {
           var successMsg = "Cluster " + $scope.clusterName + " deleted";
           errorHandling.handle(response, null, defer, successMsg);
@@ -272,7 +278,7 @@ module.controller('ClusterDeleteCtrl', function ($q, $scope, dialogData, cluster
 
     $scope.scaleCluster = function scaleCluster(clusterName, workercount, mastercount) {
       var defer = $q.defer();
-      clusterData.sendScaleCluster($scope.clusterName, workercount, mastercount, $scope.context)
+      clusterData.sendScaleCluster($scope.clusterName, workercount, mastercount, $scope.context, $scope.deploymentType)
         .then(function (response) {
           var successMsg = "Cluster scaling initiated for: " + $scope.clusterName;
           errorHandling.handle(response, null, defer, successMsg);
@@ -285,16 +291,33 @@ module.controller('ClusterDeleteCtrl', function ($q, $scope, dialogData, cluster
 );
 
 module.controller('ClusterNewCtrl', function ($q, $scope, dialogData, clusterData, sendNotifications, errorHandling) {
+    $scope.regForm = 1;
+    $scope.crdForm = 2;
+
+    $scope.tab = $scope.regForm;
+    $scope.setTab = function (tabId) {
+      // reset to basic configuration upon tab change.
+      if (tabId  !== $scope.regForm && $scope.advanced) {
+        $scope.toggleAdvanced();
+      }
+      $scope.tab = tabId;
+    };
+    $scope.tabIsSet = function (tabId) {
+      return $scope.tab === tabId;
+    };
+
     $scope.NAME_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
     $scope.NUMBER_RE = /^-?[0-9]*$/;
     $scope.fields = {
-      name: "",
+      name: "sparkc",
       workers: 1,
       configName: null,
       masterconfigname: null,
       workerconfigname: null,
       exposewebui: true,
-      sparkimage: ""
+      sparkimage: "",
+      sparkmetrics: "prometheus",
+      alertrules: "uptime"
     };
     $scope.advanced = false;
     $scope.context = {
@@ -323,7 +346,7 @@ module.controller('ClusterNewCtrl', function ($q, $scope, dialogData, clusterDat
           ex = new Error("The member name contains invalid characters.");
         }
         if (ex) {
-          ex.target = "#cluster-new-name";
+          ex.target = $scope.tab === $scope.crdForm ? "#cluster-new-name-crd" : "#cluster-new-name";
           defer.reject(ex);
         }
       }
@@ -338,7 +361,8 @@ module.controller('ClusterNewCtrl', function ($q, $scope, dialogData, clusterDat
           ex = new Error("Please give a value greater than 0.");
         }
         if (ex) {
-          ex.target = $scope.advanced ? "#cluster-adv-workers" : "#cluster-new-workers";
+          ex.target = $scope.tab === $scope.crdForm ? "#cluster-new-workers-crd" :
+            ( $scope.advanced ? "#cluster-adv-workers" : "#cluster-new-workers" );
           defer.reject(ex);
         }
       }
@@ -353,6 +377,7 @@ module.controller('ClusterNewCtrl', function ($q, $scope, dialogData, clusterDat
       var defer = $q.defer();
       var name = $scope.fields.name.trim();
       var workersInt = $scope.fields.workers || 0;
+      var useCrd = $scope.tab === $scope.crdForm;
       var clusterConfig = {
         clusterName: name,
         masterCount: 1,
@@ -361,9 +386,12 @@ module.controller('ClusterNewCtrl', function ($q, $scope, dialogData, clusterDat
         masterConfigName: $scope.advanced ? $scope.fields.masterconfigname : null,
         workerConfigName: $scope.advanced ? $scope.fields.workerconfigname : null,
         exposewebui: $scope.advanced ? $scope.fields.exposewebui : true,
-        sparkImage: $scope.advanced && $scope.fields.sparkimage !== "" ? $scope.fields.sparkimage  : "SPARK_DEFAULT",
-        sparkDefaultUsed: $scope.advanced && $scope.fields.sparkimage !== "" ? false  : true,
-        metrics: true
+        sparkImage: $scope.advanced && $scope.fields.sparkimage !== "" ? $scope.fields.sparkimage  : "radanalyticsio/openshift-spark",
+        sparkDefaultUsed: !($scope.advanced && $scope.fields.sparkimage !== ""),
+        metrics: true,
+        sparkmetrics: useCrd ? $scope.fields.sparkmetrics : null,
+        alertrules: useCrd ? $scope.fields.alertrules : null,
+        useCRD: useCrd
       };
 
       validate(name, workersInt)

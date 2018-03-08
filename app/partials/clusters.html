@@ -60,10 +60,14 @@
                             </button>
                             <ul class="uib-dropdown-menu dropdown-menu-right">
                               <li>
-                                <a href="" id="{{cluster}}-scalebutton" role="button" ng-click="scaleCluster(cluster, countWorkers(oshinkoClusters[cluster]), countMasters(oshinkoClusters[cluster]))">Scale Cluster</a>
+                                <a href="" id="{{cluster}}-scalebutton" role="button"
+                                   ng-click="scaleCluster(cluster,
+                                   countWorkers(oshinkoClusters[cluster]),
+                                   countMasters(oshinkoClusters[cluster]),
+                                   getDeploymentType(oshinkoClusters[cluster]))">Scale Cluster</a>
                               </li>
                               <li>
-                                <a href="" id="{{cluster}}-deletebutton" role="button" ng-click="deleteCluster(cluster)">Delete Cluster</a>
+                                <a href="" id="{{cluster}}-deletebutton" role="button" ng-click="deleteCluster(cluster, getDeploymentType(oshinkoClusters[cluster]))">Delete Cluster</a>
                               </li>
                             </ul>
                           </span>

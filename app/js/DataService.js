@@ -1910,5 +1910,6 @@ angular.module("Oshinko")
         scaleObject,
         { namespace: object.metadata.namespace });
     };
+
     return new DeploymentsService();
   });
